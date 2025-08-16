@@ -2,13 +2,18 @@
 
 Offline-first developer utilities for macOS, Windows, and Linux. No cloud dependencies, no data collection.
 
-![DevTools Desktop](https://github.com/me-shaon/devtools/blob/main/assets/screenshot.png?raw=true)
+![DevTools Desktop](https://github.com/khaled4vokalz/devtools/blob/main/assets/home.png?raw=true)
 
 ## Features
 
 ### Text & Code
 - **JSON Viewer** - Format, validate, and minify JSON with syntax highlighting
 - **Text Compare** - Diff viewer with line-by-line comparison
+
+| Side by Side | Unified |
+|--------------|---------|
+| ![](https://github.com/khaled4vokalz/devtools/blob/main/assets/text-compare_side-by-side.png?raw=true) | ![](https://github.com/khaled4vokalz/devtools/blob/main/assets/text-compare_unified.png?raw=true) |
+
 - **Case Converter** - Transform between camelCase, snake_case, kebab-case, and more
 - **SQL Formatter** - Format SQL queries with customizable indentation
 - **Markdown Editor** - Live preview with export support
@@ -24,6 +29,7 @@ Offline-first developer utilities for macOS, Windows, and Linux. No cloud depend
 ### Generators
 - **UUID** - Generate v1/v4 UUIDs with batch support
 - **Hash** - MD5, SHA-1, SHA-256, SHA-512
+- **Password** - Of different length and strength
 - **QR Code** - Generate QR codes with custom size and error correction
 - **Color Palette** - Create monochromatic, analogous, complementary schemes
 - **Lorem Ipsum** - Generate placeholder text
@@ -34,6 +40,10 @@ Offline-first developer utilities for macOS, Windows, and Linux. No cloud depend
 - **Cron Parser** - Build cron expressions with plain English descriptions
 - **Timestamp Converter** - Unix timestamp conversion with multiple formats
 - **Image Converter** - Convert between PNG, JPEG, WebP, BMP
+
+### UI
+- **Pin a tool in the menu**
+![](https://github.com/khaled4vokalz/devtools/blob/main/assets/pinning.gif?raw=true)
 
 ## Quick Start
 
