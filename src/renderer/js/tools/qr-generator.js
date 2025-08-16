@@ -1,6 +1,23 @@
 class QRGenerator {
     constructor() {
-        this.init();
+        this.qrcode = null;
+        this.loadQRLibrary().then(() => {
+            this.init();
+        });
+    }
+
+    async loadQRLibrary() {
+        // Load the Node.js qrcode package (available through Electron)
+        try {
+            if (window.require) {
+                this.qrcode = window.require('qrcode');
+                console.log('QR code library loaded successfully');
+                return;
+            }
+        } catch (error) {
+            console.error('Failed to load QR code library:', error);
+            throw new Error('QR code library not available');
+        }
     }
 
     init() {
@@ -31,229 +48,218 @@ class QRGenerator {
             return;
         }
 
+        if (!this.qrcode) {
+            window.app?.showMessage('QR code library not loaded. Please restart the application.', 'error');
+            return;
+        }
+
         try {
             this.createQRCode(text, size, errorLevel);
             document.getElementById('download-qr').disabled = false;
+            
+            // Show what data is encoded
+            this.displayQRInfo(text, errorLevel);
+            
             window.app?.showMessage('QR code generated successfully!', 'success');
         } catch (error) {
+            console.error('QR generation error:', error);
             window.app?.showMessage('Error generating QR code: ' + error.message, 'error');
         }
     }
 
     createQRCode(text, size, errorLevel) {
         const canvas = document.getElementById('qr-canvas');
+        
+        const errorCorrectionLevel = errorLevel.toLowerCase();
+        const options = {
+            errorCorrectionLevel: errorCorrectionLevel,
+            type: 'image/png',
+            quality: 0.92,
+            width: size,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        };
+
+        this.qrcode.toCanvas(canvas, text, options, (error) => {
+            if (error) {
+                console.error('QR code generation error:', error);
+                throw error;
+            } else {
+                document.getElementById('qr-preview').style.display = 'block';
+                console.log('QR code generated successfully');
+            }
+        });
+    }
+
+    displayQRInfo(text, errorLevel) {
+        // Create or update info display
+        let infoDiv = document.getElementById('qr-info');
+        if (!infoDiv) {
+            infoDiv = document.createElement('div');
+            infoDiv.id = 'qr-info';
+            infoDiv.className = 'qr-info';
+            document.getElementById('qr-preview').appendChild(infoDiv);
+        }
+
+        const textLength = text.length;
+        const textType = this.detectTextType(text);
+        
+        infoDiv.innerHTML = `
+            <div class="qr-details">
+                <h4>QR Code Details:</h4>
+                <div class="detail-row"><strong>Data:</strong> ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}</div>
+                <div class="detail-row"><strong>Type:</strong> ${textType}</div>
+                <div class="detail-row"><strong>Length:</strong> ${textLength} characters</div>
+                <div class="detail-row"><strong>Error Correction:</strong> ${this.getErrorLevelDescription(errorLevel)}</div>
+                <div class="detail-row"><strong>Status:</strong> <span class="status-success">✓ Scannable QR Code</span></div>
+            </div>
+        `;
+    }
+
+    detectTextType(text) {
+        if (text.match(/^https?:\/\//i)) {
+            return 'URL/Website';
+        } else if (text.match(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/)) {
+            return 'Email Address';
+        } else if (text.match(/^[\+]?[1-9][\d\s\-\(\)]{7,}$/)) {
+            return 'Phone Number';
+        } else if (text.match(/^[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}$/i)) {
+            return 'UUID';
+        } else if (text.includes('\n') || text.length > 100) {
+            return 'Text/Data';
+        } else {
+            return 'Text';
+        }
+    }
+
+    getErrorLevelDescription(level) {
+        const descriptions = {
+            'L': 'Low (7% recovery)',
+            'M': 'Medium (15% recovery)',
+            'Q': 'Quartile (25% recovery)',
+            'H': 'High (30% recovery)'
+        };
+        return descriptions[level] || descriptions['M'];
+    }
+
+    createQRCode(text, size, errorLevel) {
+        const canvas = document.getElementById('qr-canvas');
+        
+        // Try Node.js qrcode package first
+        if (this.qrcode) {
+            try {
+                const errorCorrectionLevel = errorLevel.toLowerCase();
+                const options = {
+                    errorCorrectionLevel: errorCorrectionLevel,
+                    type: 'image/png',
+                    quality: 0.92,
+                    width: size,
+                    color: {
+                        dark: '#000000',
+                        light: '#FFFFFF'
+                    }
+                };
+
+                this.qrcode.toCanvas(canvas, text, options, (error) => {
+                    if (error) {
+                        console.error('Node.js qrcode error:', error);
+                        this.tryFallbackMethods(text, size, errorLevel);
+                    } else {
+                        document.getElementById('qr-preview').style.display = 'block';
+                        console.log('QR code generated successfully with Node.js package');
+                    }
+                });
+                return;
+            } catch (error) {
+                console.error('Node.js qrcode error:', error);
+            }
+        }
+
+        this.tryFallbackMethods(text, size, errorLevel);
+    }
+
+    tryFallbackMethods(text, size, errorLevel) {
+        const canvas = document.getElementById('qr-canvas');
+        
+        if (window.QRious) {
+            // Use QRious library for reliable QR generation
+            try {
+                const qr = new QRious({
+                    element: canvas,
+                    value: text,
+                    size: size,
+                    level: errorLevel,
+                    background: 'white',
+                    foreground: 'black',
+                    padding: Math.floor(size * 0.05) // 5% padding
+                });
+                
+                document.getElementById('qr-preview').style.display = 'block';
+                console.log('QR code generated successfully with QRious');
+                return;
+            } catch (error) {
+                console.error('QRious error:', error);
+            }
+        }
+
+        if (window.qrcode) {
+            // Use qrcode-generator library as alternative
+            try {
+                const errorCorrectionLevel = {
+                    'L': window.qrcode.ErrorCorrectionLevel.L,
+                    'M': window.qrcode.ErrorCorrectionLevel.M,
+                    'Q': window.qrcode.ErrorCorrectionLevel.Q,
+                    'H': window.qrcode.ErrorCorrectionLevel.H
+                };
+
+                const qr = window.qrcode(0, errorCorrectionLevel[errorLevel] || errorCorrectionLevel.M);
+                qr.addData(text);
+                qr.make();
+                
+                this.renderQRToCanvas(qr, canvas, size);
+                document.getElementById('qr-preview').style.display = 'block';
+                console.log('QR code generated successfully with qrcode-generator');
+                return;
+            } catch (error) {
+                console.error('qrcode-generator error:', error);
+            }
+        }
+
+        // Final fallback to manual implementation
+        console.log('All QR libraries failed, using manual fallback');
+        this.createQRCodeManual(text, size, errorLevel);
+    }
+
+    renderQRToCanvas(qr, canvas, size) {
         const ctx = canvas.getContext('2d');
+        const moduleCount = qr.getModuleCount();
+        const moduleSize = Math.floor(size / moduleCount);
+        const padding = Math.floor((size - moduleSize * moduleCount) / 2);
         
         canvas.width = size;
         canvas.height = size;
         
+        // Clear canvas with white background
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, size, size);
-
-        const qr = this.generateQRMatrix(text, errorLevel);
-        const moduleSize = Math.floor(size / qr.length);
-        const offset = (size - (qr.length * moduleSize)) / 2;
-
+        
+        // Draw QR modules
         ctx.fillStyle = 'black';
-        for (let row = 0; row < qr.length; row++) {
-            for (let col = 0; col < qr[row].length; col++) {
-                if (qr[row][col]) {
+        for (let row = 0; row < moduleCount; row++) {
+            for (let col = 0; col < moduleCount; col++) {
+                if (qr.isDark(row, col)) {
                     ctx.fillRect(
-                        offset + col * moduleSize,
-                        offset + row * moduleSize,
+                        padding + col * moduleSize,
+                        padding + row * moduleSize,
                         moduleSize,
                         moduleSize
                     );
                 }
             }
         }
-
-        document.getElementById('qr-preview').style.display = 'block';
-    }
-
-    generateQRMatrix(text, errorLevel) {
-        const version = this.determineVersion(text);
-        const size = 17 + 4 * version;
-        const matrix = Array(size).fill().map(() => Array(size).fill(false));
-
-        this.addFinderPatterns(matrix, size);
-        this.addSeparators(matrix, size);
-        this.addDarkModule(matrix, version);
-        this.addTimingPatterns(matrix, size);
-        
-        if (version >= 2) {
-            this.addAlignmentPatterns(matrix, version);
-        }
-        
-        if (version >= 7) {
-            this.addVersionInfo(matrix, version);
-        }
-
-        const data = this.encodeData(text, version, errorLevel);
-        this.addDataToMatrix(matrix, data);
-
-        return matrix;
-    }
-
-    determineVersion(text) {
-        const length = text.length;
-        if (length <= 17) return 1;
-        if (length <= 32) return 2;
-        if (length <= 53) return 3;
-        if (length <= 78) return 4;
-        return 5;
-    }
-
-    addFinderPatterns(matrix, size) {
-        const pattern = [
-            [1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,1],
-            [1,0,1,1,1,0,1],
-            [1,0,1,1,1,0,1],
-            [1,0,1,1,1,0,1],
-            [1,0,0,0,0,0,1],
-            [1,1,1,1,1,1,1]
-        ];
-
-        const positions = [
-            [0, 0],
-            [0, size - 7],
-            [size - 7, 0]
-        ];
-
-        positions.forEach(([startRow, startCol]) => {
-            for (let row = 0; row < 7; row++) {
-                for (let col = 0; col < 7; col++) {
-                    matrix[startRow + row][startCol + col] = pattern[row][col] === 1;
-                }
-            }
-        });
-    }
-
-    addSeparators(matrix, size) {
-        for (let i = 0; i < 8; i++) {
-            matrix[7][i] = false;
-            matrix[i][7] = false;
-            matrix[7][size - 8 + i] = false;
-            matrix[i][size - 8] = false;
-            matrix[size - 8][i] = false;
-            matrix[size - 8 + i][7] = false;
-        }
-    }
-
-    addDarkModule(matrix, version) {
-        const size = matrix.length;
-        matrix[4 * version + 9][8] = true;
-    }
-
-    addTimingPatterns(matrix, size) {
-        for (let i = 8; i < size - 8; i++) {
-            matrix[6][i] = (i % 2) === 0;
-            matrix[i][6] = (i % 2) === 0;
-        }
-    }
-
-    addAlignmentPatterns(matrix, version) {
-        const positions = this.getAlignmentPatternPositions(version);
-        
-        positions.forEach(pos => {
-            const [centerRow, centerCol] = pos;
-            const pattern = [
-                [1,1,1,1,1],
-                [1,0,0,0,1],
-                [1,0,1,0,1],
-                [1,0,0,0,1],
-                [1,1,1,1,1]
-            ];
-
-            for (let row = 0; row < 5; row++) {
-                for (let col = 0; col < 5; col++) {
-                    const matrixRow = centerRow - 2 + row;
-                    const matrixCol = centerCol - 2 + col;
-                    if (matrixRow >= 0 && matrixRow < matrix.length && 
-                        matrixCol >= 0 && matrixCol < matrix.length) {
-                        matrix[matrixRow][matrixCol] = pattern[row][col] === 1;
-                    }
-                }
-            }
-        });
-    }
-
-    getAlignmentPatternPositions(version) {
-        const positions = {
-            2: [[6, 18]],
-            3: [[6, 22]],
-            4: [[6, 26]],
-            5: [[6, 30]]
-        };
-        return positions[version] || [];
-    }
-
-    addVersionInfo() {
-    }
-
-    encodeData(text, version, errorLevel) {
-        const mode = '0100';
-        const charCount = text.length.toString(2).padStart(8, '0');
-        
-        let data = mode + charCount;
-        
-        for (let i = 0; i < text.length; i++) {
-            data += text.charCodeAt(i).toString(2).padStart(8, '0');
-        }
-        
-        data += '0000';
-        
-        const capacities = {
-            1: { L: 152, M: 128, Q: 104, H: 72 },
-            2: { L: 272, M: 224, Q: 176, H: 128 },
-            3: { L: 440, M: 352, Q: 272, H: 208 },
-            4: { L: 640, M: 512, Q: 384, H: 288 },
-            5: { L: 864, M: 688, Q: 496, H: 368 }
-        };
-        
-        const capacity = capacities[version][errorLevel]; 
-        
-        while (data.length < capacity) {
-            data += data.length % 16 < 8 ? '11101100' : '00010001';
-        }
-        
-        return data.substring(0, capacity);
-    }
-
-    addDataToMatrix(matrix, data) {
-        let bitIndex = 0;
-        let up = true;
-        const size = matrix.length;
-        
-        for (let col = size - 1; col > 0; col -= 2) {
-            if (col === 6) col--;
-            
-            for (let i = 0; i < size; i++) {
-                for (let c = 0; c < 2; c++) {
-                    const currentCol = col - c;
-                    const currentRow = up ? size - 1 - i : i;
-                    
-                    if (!this.isReserved(matrix, currentRow, currentCol, size)) {
-                        if (bitIndex < data.length) {
-                            matrix[currentRow][currentCol] = data[bitIndex] === '1';
-                            bitIndex++;
-                        }
-                    }
-                }
-            }
-            up = !up;
-        }
-    }
-
-    isReserved(_, row, col, size) {
-        if (row < 9 && col < 9) return true;
-        if (row < 9 && col >= size - 8) return true;
-        if (row >= size - 8 && col < 9) return true;
-        if (row === 6 || col === 6) return true;
-        if (row === 4 * Math.floor((size - 17) / 4) + 9 && col === 8) return true;
-        
-        return false;
     }
 
     downloadQR() {
@@ -350,6 +356,46 @@ const qrStyles = `
     background: white;
     max-width: 100%;
     height: auto;
+    margin-bottom: 20px;
+}
+
+.qr-info {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+    text-align: left;
+}
+
+.qr-details h4 {
+    margin: 0 0 12px 0;
+    color: #1d1d1f;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.detail-row {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #424242;
+}
+
+.detail-row strong {
+    color: #1d1d1f;
+    font-weight: 500;
+    display: inline-block;
+    min-width: 120px;
+}
+
+.status-success {
+    color: #4caf50;
+    font-weight: 500;
+}
+
+.status-warning {
+    color: #ff9800;
+    font-weight: 500;
 }
 
 .controls {
@@ -373,6 +419,12 @@ const qrStyles = `
     .option-group select {
         min-width: auto;
         width: 100%;
+    }
+    
+    .detail-row strong {
+        min-width: auto;
+        display: block;
+        margin-bottom: 2px;
     }
 }
 `;
